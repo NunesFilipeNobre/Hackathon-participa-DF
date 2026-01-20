@@ -1,0 +1,55 @@
+version: "3.9"
+
+services:
+  postgres:
+    image: postgres:16
+    container_name: postgres
+    environment:
+      POSTGRES_DB: Hackathon-participa-DF
+      POSTGRES_USER: app_user
+      POSTGRES_PASSWORD: senha_forte
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+  backend:
+    build:
+      context: ./participa-DF-Back
+    container_name: backend
+    ports:
+      - "3000:3000"
+    environment:
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_USER: app_user
+      DB_PASSWORD: senha_forte
+      DB_NAME: participa-DF
+    depends_on:
+      - postgres
+    develop:
+      watch:
+        - action: sync
+          path: ./participa-DF-Back
+          target: /app
+        - action: rebuild
+          path: ./participa-DF-Back/package.json
+
+  frontend:
+    build:
+      context: ./participa-DF-Front/web
+    container_name: frontend
+    ports:
+      - "5173:5173"
+    depends_on:
+      - backend
+    develop:
+      watch:
+        - action: sync
+          path: ./participa-DF-Front/web
+          target: /app
+        - action: rebuild
+          path: ./participa-DF-Front/web/package.json
+
+volumes:
+  postgres_data:
