@@ -214,7 +214,7 @@ export default function RelatoManifestacao() {
 
     try {
       // Tenta conectar no backend (Porta 3000)
-      const response = await fetch('http://https://unfilled-nonsententiously-allene.ngrok-free.dev/manifestacoes', {
+      const response = await fetch('http://localhost:3000/manifestacoes', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(dadosParaEnvio)
