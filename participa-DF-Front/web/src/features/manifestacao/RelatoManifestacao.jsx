@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { 
   Container, Paper, Title, Text, Stepper, Button, Group, Textarea, 
   Select, Switch, FileInput, Alert, List, Box, Divider, Blockquote, 
-  Modal, Badge, ActionIcon, Tooltip, Loader, Popover // <--- Adicionado Popover
+  Modal, Badge, ActionIcon, Tooltip, Loader, Popover 
 } from '@mantine/core';
 import { useNavigate } from 'react-router-dom';
 import { MapContainer, TileLayer, Marker, useMapEvents } from 'react-leaflet';
@@ -12,6 +12,7 @@ import L from 'leaflet';
 import icon from 'leaflet/dist/images/marker-icon.png';
 import iconShadow from 'leaflet/dist/images/marker-shadow.png';
 
+// Configuração do ícone do mapa
 let DefaultIcon = L.icon({
     iconUrl: icon,
     shadowUrl: iconShadow,
@@ -52,6 +53,7 @@ export default function RelatoManifestacao() {
   const navigate = useNavigate();
   const [active, setActive] = useState(0);
   const [mapaAberto, setMapaAberto] = useState(false);
+  const [loading, setLoading] = useState(false); // Novo estado para mostrar carregamento
   
   // --- ESTADOS DE ÁUDIO ---
   const [ouvindoDitado, setOuvindoDitado] = useState(false);
@@ -188,26 +190,79 @@ export default function RelatoManifestacao() {
     setAudioURL(null);
   };
 
-  // --- NAVEGAÇÃO ---
+  // --- NAVEGAÇÃO E ENVIO (CORRIGIDOS) ---
+  
+  // 1. Função que de fato chama o Backend
+  const gerarProtocolo = async () => {
+    setLoading(true);
+    const numero = `2026.${Math.floor(Math.random() * 100000)}-OV`;
+    
+    const usuarioParaEnvio = dados.anonimo 
+        ? null 
+        : { cpf: '000.000.000-00', nome: 'João da Silva' };
+
+    const dadosParaEnvio = {
+      protocolo: numero,
+      relato: dados.relato,
+      assunto: dados.assunto,
+      localizacao: dados.localizacao,
+      anonimo: dados.anonimo,
+      temAudio: !!audioBlob, 
+      temArquivo: !!dados.arquivo,
+      usuario: usuarioParaEnvio 
+    };
+
+    try {
+      // Tenta conectar no backend (Porta 3000)
+      const response = await fetch('http://localhost:3000/manifestacoes', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(dadosParaEnvio)
+      });
+
+      if (response.ok) {
+        console.log("Salvo no banco!");
+        handleInput('protocoloGerado', numero);
+        // Só avança se o banco responder OK
+        setActive((current) => (current < 5 ? current + 1 : current)); 
+      } else {
+        const errorText = await response.text();
+        console.error("Erro do back:", errorText);
+        alert("Erro ao salvar: " + errorText);
+      }
+    } catch (error) {
+      console.error(error);
+      alert("Erro de conexão. Verifique se o Docker/Backend está rodando.");
+    } finally {
+        setLoading(false);
+    }
+  };
+
+  // 2. Função do botão "Próximo / Finalizar"
   const nextStep = () => {
+    // Validação Passo 1
     if (active === 0) {
         if (!preferenciaAudio && dados.relato.trim().length < 10) {
             alert("Por favor, descreva o relato ou selecione a opção de gravar áudio posteriormente.");
             return;
         }
     }
+    // Validação Passo 2
     if (active === 1 && !dados.assunto) {
       alert("Por favor, selecione um assunto.");
       return;
     }
+    // Passo Final: Salvar
     if (active === 4) {
         if (preferenciaAudio && !audioBlob && !dados.arquivo) {
             alert("Como você optou por não escrever, é OBRIGATÓRIO gravar um áudio ou anexar um arquivo.");
             return;
         }
-        const numero = `2026.${Math.floor(Math.random() * 100000)}-OV`;
-        handleInput('protocoloGerado', numero);
+        // CHAMADA VITAL PARA O BACKEND
+        gerarProtocolo(); 
+        return; // Pára aqui e espera o gerarProtocolo decidir
     }
+    // Avanço normal
     setActive((current) => (current < 5 ? current + 1 : current));
   };
 
@@ -238,7 +293,6 @@ export default function RelatoManifestacao() {
                    </List>
                 </Alert>
                 
-                {/* BOTÕES DE DITADO E LEITURA */}
                 <Box>
                     <Tooltip label="Ditar texto">
                         <ActionIcon 
@@ -262,9 +316,6 @@ export default function RelatoManifestacao() {
                             {lendo ? "⏹️" : "🔊"}
                         </ActionIcon>
                     </Tooltip>
-                    <Text size="xs" align="center" mt={4} color="dimmed">
-                        Acessibilidade
-                    </Text>
                 </Box>
             </Group>
 
@@ -278,11 +329,11 @@ export default function RelatoManifestacao() {
               required={!preferenciaAudio}
             />
 
-            {/* --- NOVA ÁREA DE AVISO LEGAL (LIMPA E COM POPOVER) --- */}
             <Group position="right" mt="xs">
                 <Popover width={350} position="bottom-end" withArrow shadow="md">
                     <Popover.Target>
-                        <Button variant="subtle" compact size="xs" color="gray" style={{ fontWeight: 400 }}>
+                        {/* Removido 'compact' para corrigir erro no console */}
+                        <Button variant="subtle" size="xs" color="gray" style={{ fontWeight: 400 }}>
                             ℹ️ Informações importantes sobre Sigilo (Art. 23)
                         </Button>
                     </Popover.Target>
@@ -294,7 +345,6 @@ export default function RelatoManifestacao() {
                             <List.Item>A identidade do denunciante é tratada com sigilo absoluto.</List.Item>
                             <List.Item>É proibido compartilhar seus dados pessoais com o órgão denunciado.</List.Item>
                             <List.Item>O sigilo é obrigatório, mesmo dentro dos órgãos públicos.</List.Item>
-                            <List.Item>O descumprimento gera responsabilização administrativa, civil e penal.</List.Item>
                         </List>
                     </Popover.Dropdown>
                 </Popover>
@@ -302,7 +352,6 @@ export default function RelatoManifestacao() {
 
             <Divider my="md" label="OU" labelPosition="center" />
 
-            {/* BOTÃO PARA PULAR TEXTO */}
             <Paper withBorder p="sm" sx={{ backgroundColor: preferenciaAudio ? '#e7f5ff' : 'transparent', borderColor: preferenciaAudio ? '#1c7ed6' : '#dee2e6' }}>
                 <Group position="apart">
                     <Box>
@@ -423,7 +472,8 @@ export default function RelatoManifestacao() {
                         </Group>
                     </Box>
                 ) : (
-                    <Box textAlign="center">
+                    // Corrigido: 'textAlign' movido para 'style' para limpar erro do console
+                    <Box style={{ textAlign: 'center' }}>
                         <Text size="sm" mb="md" align="center">
                             Clique no botão abaixo para iniciar a gravação.
                         </Text>
@@ -462,7 +512,7 @@ export default function RelatoManifestacao() {
           </Paper>
         </Stepper.Step>
 
-        {/* 6. PROTOCOLO */}
+        {/* 6. PROTOCOLO (TELA FINAL) */}
         <Stepper.Completed>
           <Paper withBorder shadow="md" p="xl" radius="md" mt="xl" sx={{ textAlign: 'center', borderColor: '#40c057' }}>
             <Title order={2} style={{ color: '#2b8a3e' }} mb="md">Manifestação Registrada!</Title>
@@ -498,7 +548,14 @@ export default function RelatoManifestacao() {
       {active < 5 && (
         <Group position="center" mt="xl">
           <Button variant="default" onClick={prevStep} disabled={active === 0}>Voltar</Button>
-          <Button onClick={nextStep} style={{ backgroundColor: '#0056b3' }} size="md" px={40}>
+          
+          <Button 
+            onClick={nextStep} 
+            style={{ backgroundColor: '#0056b3' }} 
+            size="md" 
+            px={40}
+            loading={loading} // Mostra spinner enquanto o banco salva
+          >
             {active === 4 ? 'Finalizar e Enviar' : 'Próximo Passo'}
           </Button>
         </Group>

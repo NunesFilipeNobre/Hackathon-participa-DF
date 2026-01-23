@@ -5,13 +5,15 @@ services:
     image: postgres:16
     container_name: postgres
     environment:
-      POSTGRES_DB: Hackathon-participa-DF
+      POSTGRES_DB: participa_df
       POSTGRES_USER: app_user
       POSTGRES_PASSWORD: senha_forte
     ports:
-      - "5432:5432"
+      # MUDANÇA CRÍTICA: Vamos usar a porta 5433 externamente para fugir de conflitos
+      - "5433:5432"
     volumes:
-      - postgres_data:/var/lib/postgresql/data
+      # MUDANÇA CRÍTICA: Mudamos o nome do volume para forçar um banco zero km
+      - pg_data_novo:/var/lib/postgresql/data
 
   backend:
     build:
@@ -20,11 +22,12 @@ services:
     ports:
       - "3000:3000"
     environment:
+      # Internamente no Docker, eles continuam se falando na porta padrão 5432
       DB_HOST: postgres
       DB_PORT: 5432
       DB_USER: app_user
       DB_PASSWORD: senha_forte
-      DB_NAME: participa-DF
+      DB_NAME: participa_df
     depends_on:
       - postgres
     develop:
@@ -52,4 +55,4 @@ services:
           path: ./participa-DF-Front/web/package.json
 
 volumes:
-  postgres_data:
+  pg_data_novo: # Volume novo
